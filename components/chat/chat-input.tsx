@@ -1,7 +1,6 @@
 "use client";
 
 import type { ChatStatus } from "ai";
-import { GlobeIcon } from "lucide-react";
 import { type RefObject, useEffect, useState } from "react";
 import {
   type CommandMetadata,
@@ -19,9 +18,7 @@ import {
   PromptInputAttachment,
   PromptInputAttachments,
   PromptInputBody,
-  PromptInputButton,
   type PromptInputMessage,
-  PromptInputSpeechButton,
   PromptInputSubmit,
   PromptInputToolbar,
   PromptInputTools,
@@ -36,8 +33,6 @@ interface ChatInputProps {
   text: string;
   setText: (text: string) => void;
   textareaRef?: RefObject<HTMLTextAreaElement | null>;
-  useWebSearch: boolean;
-  setUseWebSearch: (value: boolean) => void;
   onSubmit: (message: ChatInputMessage) => void;
   status?: ChatStatus;
   hasMessages: boolean;
@@ -53,8 +48,6 @@ function ChatInputInner({
   text,
   setText,
   textareaRef,
-  useWebSearch,
-  setUseWebSearch,
   onSubmit,
   status,
   hasMessages,
@@ -114,7 +107,7 @@ function ChatInputInner({
           </PromptInputActionMenu>
         </PromptInputTools>
         <PromptInputSubmit
-        variant="ghost"
+          variant="ghost"
           disabled={
             (!text.trim() && !status) ||
             status === "streaming" ||
@@ -131,8 +124,6 @@ export function ChatInput({
   text,
   setText,
   textareaRef,
-  useWebSearch,
-  setUseWebSearch,
   onSubmit,
   status,
   hasMessages,
@@ -154,13 +145,15 @@ export function ChatInput({
 
   return (
     <div>
-      <PromptCommands metadata={metadata} onSelectionChange={setSelection} hasMessages={hasMessages}>
+      <PromptCommands
+        metadata={metadata}
+        onSelectionChange={setSelection}
+        hasMessages={hasMessages}
+      >
         <ChatInputInner
           text={text}
           setText={setText}
           textareaRef={textareaRef}
-          useWebSearch={useWebSearch}
-          setUseWebSearch={setUseWebSearch}
           onSubmit={onSubmit}
           status={status}
           hasMessages={hasMessages}
