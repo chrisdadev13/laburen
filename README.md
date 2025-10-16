@@ -1,3 +1,9 @@
+# Laburen - AI Agent Project
+
+## 🚀 Quick Links
+
+- **Live Demo:** https://laburen-xi.vercel.app/
+- **Video Walkthrough:** https://www.loom.com/share/1d1bcf9b0a75417d9e932e2c609fbbe5
 <img width="1506" height="850" alt="Screenshot 2025-10-16 at 2 43 42 PM" src="https://github.com/user-attachments/assets/ab179f76-2a50-4624-8290-74a6bec4b526" />
 
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
