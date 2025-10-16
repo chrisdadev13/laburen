@@ -4,11 +4,12 @@ import { motion } from "motion/react";
 import { Button } from "@/components/ui/button";
 
 const SUGGESTIONS = [
-  "Show me the balance sheet",
-  "What's our revenue this year",
-  "Analyze our burn rate",
-  "Show recent invoices",
-  "How's our cash flow",
+  "What are our return policies?",
+  "How do I create a sales order?",
+  "Show me recent orders",
+  "Search company policies",
+  "List available documentation",
+  "Help me sign in to my account",
 ];
 
 interface SuggestionPillsProps {
