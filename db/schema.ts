@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean, decimal, integer, vector } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, decimal, integer, vector, uuid, varchar, json } from "drizzle-orm/pg-core";
 
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
@@ -97,13 +97,14 @@ export const chat = pgTable("chat", {
 });
 
 export const message = pgTable("message", {
-  id: text("id").primaryKey(),
-  chatId: text("chat_id")
+  id: text("id").primaryKey().notNull(),
+  chatId: text("chatId")
     .notNull()
-    .references(() => chat.id, { onDelete: "cascade" }),
+    .references(() => chat.id),
   role: text("role").notNull(),
-  content: text("content").notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  parts: json("parts").notNull(),
+  attachments: json("attachments").notNull(),
+  createdAt: timestamp("createdAt").notNull(),
 });
 
 export const document = pgTable("document", {

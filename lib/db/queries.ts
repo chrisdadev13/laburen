@@ -9,7 +9,7 @@ export async function getChatById(chatId: string) {
     .from(chat)
     .where(eq(chat.id, chatId))
     .limit(1);
-  
+
   return result;
 }
 
@@ -34,7 +34,7 @@ export async function saveChat({
       createdAt: new Date(),
     })
     .returning();
-  
+
   return result;
 }
 
@@ -59,12 +59,14 @@ export async function saveMessage({
   id,
   chatId,
   role,
-  content,
+  parts,
+  attachments,
 }: {
   id: string;
   chatId: string;
   role: string;
-  content: string;
+  parts: any[];
+  attachments: any[];
 }) {
   const [result] = await db
     .insert(message)
@@ -72,11 +74,12 @@ export async function saveMessage({
       id,
       chatId,
       role,
-      content,
+      parts,
+      attachments,
       createdAt: new Date(),
     })
     .returning();
-  
+
   return result;
 }
 
@@ -84,10 +87,11 @@ export async function saveMessages(messages: Array<{
   id: string;
   chatId: string;
   role: string;
-  content: string;
+  parts: any[];
+  attachments: any[];
 }>) {
   if (messages.length === 0) return [];
-  
+
   return await db
     .insert(message)
     .values(

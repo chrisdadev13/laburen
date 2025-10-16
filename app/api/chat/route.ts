@@ -18,11 +18,58 @@ const REDIS_AUTH_PREFIX = 'user:authenticated:';
 // Helper function to extract text content from UIMessage parts
 function getMessageContent(message: UIMessage): string {
     if (!message.parts || message.parts.length === 0) return '';
-    
+
     return message.parts
         .filter((part) => 'type' in part && part.type === 'text')
         .map((part) => 'text' in part ? part.text : '')
         .join(' ');
+}
+
+// Type for database message parts
+type DBMessagePart = {
+    type: 'text';
+    text: string;
+};
+
+// Type for database message
+type DBMessage = {
+    id: string;
+    chatId: string;
+    role: string;
+    parts: DBMessagePart[];
+    attachments: any[];
+    createdAt: Date;
+};
+
+// Helper function to convert database message to ModelMessage format for AI SDK
+function convertDBMessageToModelMessage(dbMessage: DBMessage) {
+    const textContent = dbMessage.parts
+        .filter((part) => part.type === 'text')
+        .map((part) => part.text || '')
+        .join(' ');
+
+    return {
+        role: dbMessage.role as 'user' | 'assistant' | 'system',
+        content: textContent,
+        parts: dbMessage.parts.map(part => ({
+            type: part.type as 'text',
+            text: part.text,
+        })) as any,
+    };
+}
+
+// Helper function to convert UIMessage to database message format
+function convertToDBMessage(uiMessage: UIMessage, chatId: string) {
+    return {
+        id: uiMessage.id || nanoid(),
+        chatId,
+        role: uiMessage.role,
+        parts: (uiMessage.parts || []).map(part => ({
+            type: part.type as 'text',
+            text: 'text' in part ? part.text : '',
+        })),
+        attachments: [], // TODO: Handle attachments if needed
+    };
 }
 
 const createSignUpTool = (userId: string) => tool({
@@ -267,12 +314,7 @@ export async function POST(req: Request) {
     // Save user message to database
     const lastMessage = message;
     if (lastMessage?.role === 'user') {
-        await saveMessages([{
-            id: lastMessage.id || nanoid(),
-            chatId: id,
-            role: lastMessage.role,
-            content: getMessageContent(lastMessage),
-        }]);
+        await saveMessages([convertToDBMessage(lastMessage, id)]);
     }
 
     const systemPrompt = isAuthenticated
@@ -329,15 +371,7 @@ Be friendly and professional. Only assist with authentication - all other featur
     const result = streamText({
         model: xai("grok-4"),
         system: systemPrompt,
-        messages: convertToModelMessages(
-            messages.map(msg => ({
-                role: msg.role as 'user' | 'assistant' | 'system',
-                content: msg.content,
-                createdAt: msg.createdAt,
-                id: msg.id,
-                parts: [{ type: 'text', text: msg.content }],
-            }))
-        ),
+        messages: messages.map(msg => convertDBMessageToModelMessage(msg as DBMessage)),
         maxRetries: 5,
         stopWhen: stepCountIs(5),
         tools: {
@@ -356,7 +390,8 @@ Be friendly and professional. Only assist with authentication - all other featur
                 id: nanoid(),
                 chatId: id,
                 role: 'assistant',
-                content: text || JSON.stringify(toolCalls),
+                parts: [{ type: 'text', text: text || JSON.stringify(toolCalls) }],
+                attachments: [],
             }]);
         },
     });
