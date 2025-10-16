@@ -21,8 +21,17 @@ export async function GET() {
     const agents: AgentMetadata[] = [
       {
         name: "Business Assistant",
-        description: "A helpful business assistant that can manage sales orders and user authentication",
-        tools: ["signUp", "signIn", "signOut", "createSalesOrder", "getRecentOrders"],
+        description: "An intelligent employee assistant with access to company knowledge base and business tools",
+        tools: [
+          "signUp",
+          "signIn",
+          "signOut",
+          "createSalesOrder",
+          "getRecentOrders",
+          "searchDocs",
+          "getDocContent",
+          "listDocs"
+        ],
       },
     ];
 
@@ -50,6 +59,21 @@ export async function GET() {
       {
         name: "getRecentOrders",
         description: "Retrieve recent sales orders. Use this when the user wants to view, list, or check their orders.",
+        agent: "Business Assistant",
+      },
+      {
+        name: "searchDocs",
+        description: "Search the company knowledge base for information about products, policies, and technical documentation using semantic search.",
+        agent: "Business Assistant",
+      },
+      {
+        name: "getDocContent",
+        description: "Retrieve the full content of a specific document from the knowledge base by ID or title.",
+        agent: "Business Assistant",
+      },
+      {
+        name: "listDocs",
+        description: "List all available documents in the company knowledge base with their titles and metadata.",
         agent: "Business Assistant",
       },
     ];
