@@ -97,23 +97,29 @@ export const ToolContent = ({ className, ...props }: ToolContentProps) => (
 );
 
 export type ToolInputProps = ComponentProps<"div"> & {
-  input: ToolUIPart["input"];
+  input?: ToolUIPart["input"];
 };
 
-export const ToolInput = ({ className, input, ...props }: ToolInputProps) => (
-  <div className={cn("space-y-2 overflow-hidden p-4", className)} {...props}>
-    <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
-      Parameters
-    </h4>
-    <div className="rounded-md bg-muted/50">
-      <CodeBlock code={JSON.stringify(input, null, 2)} language="json" />
+export const ToolInput = ({ className, input, ...props }: ToolInputProps) => {
+  if (!input) {
+    return null;
+  }
+
+  return (
+    <div className={cn("space-y-2 overflow-hidden p-4", className)} {...props}>
+      <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
+        Parameters
+      </h4>
+      <div className="rounded-md bg-muted/50">
+        <CodeBlock code={JSON.stringify(input, null, 2)} language="json" />
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 export type ToolOutputProps = ComponentProps<"div"> & {
-  output: ToolUIPart["output"];
-  errorText: ToolUIPart["errorText"];
+  output?: ToolUIPart["output"];
+  errorText?: ToolUIPart["errorText"];
 };
 
 export const ToolOutput = ({
@@ -126,14 +132,21 @@ export const ToolOutput = ({
     return null;
   }
 
-  let Output = <div>{output as ReactNode}</div>;
+  let Output: ReactNode;
 
-  if (typeof output === "object" && !isValidElement(output)) {
+  if (errorText) {
+    Output = <div>{errorText}</div>;
+  } else if (output === null || output === undefined) {
+    Output = <div>No output</div>;
+  } else if (typeof output === "string") {
+    Output = <CodeBlock code={output} language="json" />;
+  } else if (typeof output === "object" && !isValidElement(output)) {
     Output = (
       <CodeBlock code={JSON.stringify(output, null, 2)} language="json" />
     );
-  } else if (typeof output === "string") {
-    Output = <CodeBlock code={output} language="json" />;
+  } else {
+    // For React elements or other valid ReactNode types
+    Output = <div>{output as ReactNode}</div>;
   }
 
   return (
@@ -149,7 +162,6 @@ export const ToolOutput = ({
             : "bg-muted/50 text-foreground"
         )}
       >
-        {errorText && <div>{errorText}</div>}
         {Output}
       </div>
     </div>

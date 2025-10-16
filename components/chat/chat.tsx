@@ -75,6 +75,7 @@ export function Chat({
       }
 
       sendMessage({ text: message.text });
+      window.history.replaceState({}, "", `/${currentChatId}`);
       setText("");
     }
   };
@@ -92,6 +93,7 @@ export function Chat({
 
     // Send the suggestion as a message
     sendMessage({ text: suggestion });
+      window.history.replaceState({}, "", `/${currentChatId}`);
   };
 
   const handleNewChatClick = () => {

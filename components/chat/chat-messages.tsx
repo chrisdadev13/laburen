@@ -28,11 +28,9 @@ export function ChatMessages({ messages }: ChatMessagesProps) {
         const textParts = parts.filter((part) => part.type === "text");
         const sourceParts = parts.filter((part) => part.type === "source-url");
         const toolParts = parts.filter((part) => part.type.startsWith("tool-"));
-
         const textContent = textParts
           .map((part) => (part.type === "text" ? part.text : ""))
           .join("");
-
         return (
           <div key={message.id}>
             {/* Render text content in message */}
@@ -43,10 +41,10 @@ export function ChatMessages({ messages }: ChatMessagesProps) {
                   if (!("type" in part) || !part.type.startsWith("tool-")) {
                     return null;
                   }
-                  
+
                   const toolPart = part as ToolUIPart;
                   const toolName = toolPart.type.split("-").slice(1).join("-");
-                  
+
                   return (
                     <Tool key={`${message.id}-tool-${index}`}>
                       <ToolHeader
@@ -55,15 +53,15 @@ export function ChatMessages({ messages }: ChatMessagesProps) {
                         state={toolPart.state}
                       />
                       <ToolContent>
-                        {"input" in toolPart && toolPart.input && (
+                        {"input" in toolPart && toolPart.input ? (
                           <ToolInput input={toolPart.input as any} />
-                        )}
-                        {("output" in toolPart || "errorText" in toolPart) && (
+                        ) : null}
+                        {"output" in toolPart || "errorText" in toolPart ? (
                           <ToolOutput
-                            output={toolPart.output as any}
+                            output={toolPart.output ?? undefined}
                             errorText={toolPart.errorText}
                           />
-                        )}
+                        ) : null}
                       </ToolContent>
                     </Tool>
                   );
@@ -77,9 +75,6 @@ export function ChatMessages({ messages }: ChatMessagesProps) {
                 </MessageContent>
               </Message>
             )}
-
-
-
             {/* Render sources at the bottom */}
             {sourceParts.length > 0 && message.role === "assistant" && (
               <div className="max-w-[80%] mb-4">
