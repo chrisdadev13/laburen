@@ -4,7 +4,6 @@ export default function Page() {
   return <Chat currentChatId={generateUUID()} />;
 }
 
-
 function generateUUID(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0;
