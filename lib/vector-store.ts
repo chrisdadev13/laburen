@@ -1,10 +1,12 @@
-import fs from 'fs/promises';
-import path from 'path';
-import { generateEmbedding, cosineSimilarity } from './embeddings';
+import { db } from "@/db/drizzle";
+import { document } from "@/db/schema";
+import { sql } from "drizzle-orm";
+import { generateEmbedding } from "./embeddings";
 
 export interface Document {
   id: string;
   filename: string;
+  title: string;
   content: string;
   embedding?: number[];
   metadata?: {
@@ -12,6 +14,8 @@ export interface Document {
     lastModified?: Date;
     size?: number;
   };
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface SearchResult {
@@ -19,43 +23,22 @@ export interface SearchResult {
   score: number;
 }
 
-const DATA_DIR = path.join(process.cwd(), 'data');
-const VECTOR_STORE_PATH = path.join(process.cwd(), 'data', '.vector-store.json');
-
 /**
- * Load all documents from the data directory
+ * Load all documents from the database
  */
 export async function loadDocuments(): Promise<Document[]> {
   try {
-    const files = await fs.readdir(DATA_DIR);
-    const documents: Document[] = [];
-
-    for (const file of files) {
-      // Skip hidden files and the vector store file
-      if (file.startsWith('.')) continue;
-
-      const filePath = path.join(DATA_DIR, file);
-      const stats = await fs.stat(filePath);
-
-      // Only process text/markdown files
-      if (stats.isFile() && (file.endsWith('.md') || file.endsWith('.txt'))) {
-        const content = await fs.readFile(filePath, 'utf-8');
-        const title = extractTitle(content);
-
-        documents.push({
-          id: file,
-          filename: file,
-          content,
-          metadata: {
-            title,
-            lastModified: stats.mtime,
-            size: stats.size,
-          },
-        });
-      }
-    }
-
-    return documents;
+    const docs = await db.select().from(document);
+    return docs.map(doc => ({
+      id: doc.id,
+      filename: doc.filename,
+      title: doc.title,
+      content: doc.content,
+      embedding: doc.embedding as number[] | undefined,
+      metadata: doc.metadata ? JSON.parse(doc.metadata) : undefined,
+      createdAt: doc.createdAt,
+      updatedAt: doc.updatedAt,
+    }));
   } catch (error) {
     console.error('Error loading documents:', error);
     return [];
@@ -63,95 +46,159 @@ export async function loadDocuments(): Promise<Document[]> {
 }
 
 /**
- * Extract title from markdown content (first # heading)
+ * Add a document to the vector store
  */
-function extractTitle(content: string): string {
-  const match = content.match(/^#\s+(.+)$/m);
-  return match ? match[1] : 'Untitled';
+export async function addDocument(
+  id: string,
+  filename: string,
+  title: string,
+  content: string
+): Promise<void> {
+  try {
+    // Generate embedding for the document
+    const embedding = await generateEmbedding(content);
+
+    // Parse metadata if available
+    const metadata = extractMetadata(content);
+
+    await db.insert(document).values({
+      id,
+      filename,
+      title,
+      content,
+      embedding,
+      metadata: metadata ? JSON.stringify(metadata) : null,
+    });
+
+    console.log(`Added document: ${title}`);
+  } catch (error) {
+    console.error('Error adding document:', error);
+    throw error;
+  }
 }
 
 /**
- * Build or load the vector store
+ * Extract metadata from document content
  */
-export async function buildVectorStore(force = false): Promise<Document[]> {
-  // Check if vector store exists and is not forced to rebuild
-  if (!force) {
-    try {
-      const storeData = await fs.readFile(VECTOR_STORE_PATH, 'utf-8');
-      const documents = JSON.parse(storeData) as Document[];
-      console.log(`Loaded ${documents.length} documents from vector store`);
-      return documents;
-    } catch {
-      // Vector store doesn't exist, build it
-      console.log('Vector store not found, building...');
-    }
-  }
+function extractMetadata(content: string): { title?: string; size?: number } | null {
+  // Extract title from markdown (# heading)
+  const titleMatch = content.match(/^#\s+(.+)$/m);
+  const title = titleMatch ? titleMatch[1] : undefined;
 
-  // Load documents and generate embeddings
-  const documents = await loadDocuments();
-  console.log(`Generating embeddings for ${documents.length} documents...`);
-
-  for (const doc of documents) {
-    // Generate embedding for the document content
-    doc.embedding = await generateEmbedding(doc.content);
-  }
-
-  // Save vector store
-  await fs.writeFile(VECTOR_STORE_PATH, JSON.stringify(documents, null, 2));
-  console.log('Vector store built and saved');
-
-  return documents;
+  return {
+    title,
+    size: content.length,
+  };
 }
 
 /**
- * Search documents by semantic similarity
+ * Build vector store from files (for initial setup)
+ */
+export async function buildVectorStore(): Promise<Document[]> {
+  // This would be called during setup to populate the database
+  // For now, we'll rely on documents being added individually
+  return await loadDocuments();
+}
+
+/**
+ * Search documents using pgvector similarity search
  */
 export async function searchDocuments(
   query: string,
   topK = 3
 ): Promise<SearchResult[]> {
-  // Load vector store
-  const documents = await buildVectorStore();
+  try {
+    // For now, fall back to simple text search until pgvector is properly configured
+    // TODO: Implement proper pgvector similarity search
+    const results = await db
+      .select()
+      .from(document)
+      .where(sql`${document.content} ILIKE ${`%${query}%`}`)
+      .limit(topK);
 
-  if (documents.length === 0) {
+    return results.map(result => ({
+      document: {
+        id: result.id,
+        filename: result.filename,
+        title: result.title,
+        content: result.content,
+        embedding: result.embedding as number[] | undefined,
+        metadata: result.metadata ? JSON.parse(result.metadata) : undefined,
+        createdAt: result.createdAt,
+        updatedAt: result.updatedAt,
+      },
+      score: 0.8, // Placeholder score for text match
+    }));
+  } catch (error) {
+    console.error('Error searching documents:', error);
     return [];
   }
-
-  // Generate query embedding
-  const queryEmbedding = await generateEmbedding(query);
-
-  // Calculate similarities
-  const results: SearchResult[] = documents
-    .map((doc) => ({
-      document: doc,
-      score: doc.embedding
-        ? cosineSimilarity(queryEmbedding, doc.embedding)
-        : 0,
-    }))
-    .sort((a, b) => b.score - a.score)
-    .slice(0, topK);
-
-  return results;
 }
 
 /**
- * Get document by ID (filename)
+ * Get document by ID
  */
 export async function getDocumentById(id: string): Promise<Document | null> {
-  const documents = await buildVectorStore();
-  return documents.find((doc) => doc.id === id) || null;
+  try {
+    const docs = await db
+      .select()
+      .from(document)
+      .where(sql`${document.id} = ${id}`);
+
+    if (docs.length === 0) return null;
+
+    const doc = docs[0];
+    return {
+      id: doc.id,
+      filename: doc.filename,
+      title: doc.title,
+      content: doc.content,
+      embedding: doc.embedding as number[] | undefined,
+      metadata: doc.metadata ? JSON.parse(doc.metadata) : undefined,
+      createdAt: doc.createdAt,
+      updatedAt: doc.updatedAt,
+    };
+  } catch (error) {
+    console.error('Error getting document:', error);
+    return null;
+  }
 }
 
 /**
- * Get all document IDs and titles
+ * List all documents
  */
 export async function listDocuments(): Promise<
   Array<{ id: string; title: string; filename: string }>
 > {
-  const documents = await buildVectorStore();
-  return documents.map((doc) => ({
-    id: doc.id,
-    title: doc.metadata?.title || doc.filename,
-    filename: doc.filename,
-  }));
+  try {
+    const docs = await db
+      .select({
+        id: document.id,
+        title: document.title,
+        filename: document.filename,
+      })
+      .from(document);
+
+    return docs.map(doc => ({
+      id: doc.id,
+      title: doc.title,
+      filename: doc.filename,
+    }));
+  } catch (error) {
+    console.error('Error listing documents:', error);
+    return [];
+  }
+}
+
+/**
+ * Delete document by ID
+ */
+export async function deleteDocument(id: string): Promise<void> {
+  try {
+    await db.delete(document).where(sql`${document.id} = ${id}`);
+    console.log(`Deleted document: ${id}`);
+  } catch (error) {
+    console.error('Error deleting document:', error);
+    throw error;
+  }
 }

@@ -11,12 +11,6 @@ import { desc, eq } from 'drizzle-orm';
 import { searchDocsTool, getDocContentTool, listDocsTool } from '@/lib/rag-tools';
 import { getChatById, getMessagesByChatId, saveChat, saveMessages } from '@/lib/db/queries';
 
-import { env } from '@xenova/transformers';
-
-// Force WASM backend (no native dependencies needed)
-env.backends.onnx.wasm.proxy = false;
-
-
 export const maxDuration = 30;
 
 const REDIS_AUTH_PREFIX = 'user:authenticated:';

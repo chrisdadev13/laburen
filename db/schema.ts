@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean, decimal, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, decimal, integer, vector } from "drizzle-orm/pg-core";
 
 export const user = pgTable("user", {
   id: text("id").primaryKey(),
@@ -104,4 +104,18 @@ export const message = pgTable("message", {
   role: text("role").notNull(),
   content: text("content").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const document = pgTable("document", {
+  id: text("id").primaryKey(),
+  filename: text("filename").notNull(),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  embedding: vector("embedding", { dimensions: 384 }), // all-MiniLM-L6-v2 dimensions
+  metadata: text("metadata"), // JSON metadata
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at")
+    .defaultNow()
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
 });
