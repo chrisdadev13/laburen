@@ -111,7 +111,7 @@ export const document = pgTable("document", {
   filename: text("filename").notNull(),
   title: text("title").notNull(),
   content: text("content").notNull(),
-  embedding: vector("embedding", { dimensions: 384 }), // all-MiniLM-L6-v2 dimensions
+  embedding: vector("embedding", { dimensions: 1536 }), // OpenAI text-embedding-ada-002 dimensions
   metadata: text("metadata"), // JSON metadata
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at")
