@@ -17,7 +17,7 @@ export function EmptyState({ children, onSuggestionClick }: EmptyStateProps) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, delay: 0.1 }}
         >
-          What would you like to know?
+          Ask me about company policies, create orders, or search our knowledge base
         </motion.h1>
         <motion.div
           initial={{ opacity: 0, y: 20 }}
