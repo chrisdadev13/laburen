@@ -384,15 +384,79 @@ Be friendly and professional. Only assist with authentication - all other featur
             getDocContent: getDocContentTool,
             listDocs: listDocsTool,
         },
-        onFinish: async ({ text, toolCalls }) => {
+        onFinish: async (opts) => {
+            console.dir(opts, {depth: null})
+            // Build parts array for assistant message
+
+            const parts: Array<{ type: string; text?: string; toolCallId?: string; toolName?: string; args?: any; result?: any; output?: any }> = [];
+
+            // Add text content if present
+            if (opts.text?.trim()) {
+                parts.push({ type: 'text', text: opts.text });
+            }
+
+            // Extract tool calls from steps and combine with results
+            if (opts.steps && opts.steps.length > 0) {
+                opts.steps.forEach((step: any) => {
+                    if (step.content && Array.isArray(step.content)) {
+                        // Group tool calls with their results
+                        const toolCallMap = new Map();
+
+                        step.content.forEach((contentItem: any) => {
+                            if (contentItem.type === 'tool-call') {
+                                toolCallMap.set(contentItem.toolCallId, {
+                                    type: 'tool-call',
+                                    toolCallId: contentItem.toolCallId,
+                                    toolName: contentItem.toolName,
+                                    args: contentItem.input || (contentItem as any).args || {},
+                                    result: null, // Will be filled when we find the result
+                                });
+                            } else if (contentItem.type === 'tool-result') {
+                                const existingCall = toolCallMap.get(contentItem.toolCallId);
+                                if (existingCall) {
+                                    existingCall.result = contentItem.output || contentItem.result || {};
+                                } else {
+                                    // Result without call (shouldn't happen but handle it)
+                                    parts.push({
+                                        type: 'tool-result',
+                                        toolCallId: contentItem.toolCallId,
+                                        toolName: contentItem.toolName,
+                                        output: contentItem.output || contentItem.result || {},
+                                    });
+                                }
+                            }
+                        });
+
+                        // Add all complete tool calls (with or without results)
+                        toolCallMap.forEach((toolCall) => {
+                            parts.push(toolCall);
+                        });
+                    }
+                });
+            }
+
+            // Fallback: check if toolCalls exists at top level (shouldn't happen but just in case)
+            if (opts.toolCalls && opts.toolCalls.length > 0) {
+                opts.toolCalls.forEach((toolCall: any) => {
+                    parts.push({
+                        type: 'tool-call',
+                        toolCallId: toolCall.toolCallId,
+                        toolName: toolCall.toolName,
+                        args: (toolCall as any).args || (toolCall as any).arguments || toolCall.input || {},
+                    });
+                });
+            }
+
             // Save assistant message to database
-            await saveMessages([{
-                id: nanoid(),
-                chatId: id,
-                role: 'assistant',
-                parts: [{ type: 'text', text: text || JSON.stringify(toolCalls) }],
-                attachments: [],
-            }]);
+            if (parts.length > 0) {
+                await saveMessages([{
+                    id: nanoid(),
+                    chatId: id,
+                    role: 'assistant',
+                    parts,
+                    attachments: [],
+                }]);
+            }
         },
     });
 

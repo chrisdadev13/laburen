@@ -36,9 +36,13 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
   const uiMessages = messagesFromDb.map(msg => ({
     id: msg.id,
     role: msg.role as 'user' | 'assistant',
-    parts: [{ type: 'text' as const, text: msg.content }],
+    parts: msg.parts as any, // Cast database JSON parts to UIMessagePart array
+    attachments: msg.attachments as any, // Cast database JSON attachments
     createdAt: msg.createdAt,
   }));
+
+  console.dir(messagesFromDb, {depth: null})
+  console.dir(uiMessages, {depth: null})
 
   return (
     <Chat

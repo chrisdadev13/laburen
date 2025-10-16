@@ -27,7 +27,7 @@ export function ChatMessages({ messages }: ChatMessagesProps) {
       {messages.map(({ parts, ...message }) => {
         const textParts = parts.filter((part) => part.type === "text");
         const sourceParts = parts.filter((part) => part.type === "source-url");
-        const toolParts = parts.filter((part) => part.type.startsWith("tool-"));
+        const toolCallParts = parts.filter((part) => part.type === "tool-call");
         const textContent = textParts
           .map((part) => (part.type === "text" ? part.text : ""))
           .join("");
@@ -35,33 +35,41 @@ export function ChatMessages({ messages }: ChatMessagesProps) {
           <div key={message.id}>
             {/* Render text content in message */}
             {/* Render tool calls */}
-            {toolParts.length > 0 && message.role === "assistant" && (
+            {toolCallParts.length > 0 && message.role === "assistant" && (
               <div className="max-w-[80%] mb-4 space-y-2">
-                {toolParts.map((part, index) => {
-                  if (!("type" in part) || !part.type.startsWith("tool-")) {
+                {toolCallParts.map((part, index) => {
+                  if (!("type" in part) || part.type !== "tool-call") {
                     return null;
                   }
 
-                  const toolPart = part as ToolUIPart;
-                  const toolName = toolPart.type.split("-").slice(1).join("-");
+                  // Convert our database structure to ToolUIPart interface
+                  const toolCallPart = part as any; // Database part structure
+                  const toolUIPart: ToolUIPart = {
+                    type: `tool-${toolCallPart.toolName}`,
+                    toolCallId: toolCallPart.toolCallId,
+                    state: toolCallPart.result ? "output-available" : "input-available",
+                    input: toolCallPart.args,
+                    output: toolCallPart.result?.success !== false ? toolCallPart.result : undefined,
+                    errorText: toolCallPart.result?.success === false ? toolCallPart.result?.error || "Tool execution failed" : undefined,
+                  };
 
                   return (
                     <Tool key={`${message.id}-tool-${index}`}>
                       <ToolHeader
-                        title={toolName}
-                        type={toolPart.type}
-                        state={toolPart.state}
+                        title={toolCallPart.toolName}
+                        type={toolUIPart.type}
+                        state={toolUIPart.state}
                       />
                       <ToolContent>
-                        {"input" in toolPart && toolPart.input ? (
-                          <ToolInput input={toolPart.input as any} />
+                        {toolUIPart.input ? (
+                          <ToolInput input={toolUIPart.input as any} />
                         ) : null}
-                        {"output" in toolPart || "errorText" in toolPart ? (
+                        {(toolUIPart.output || toolUIPart.errorText) && (
                           <ToolOutput
-                            output={toolPart.output ?? undefined}
-                            errorText={toolPart.errorText}
+                            output={toolUIPart.output}
+                            errorText={toolUIPart.errorText}
                           />
-                        ) : null}
+                        )}
                       </ToolContent>
                     </Tool>
                   );

@@ -60,6 +60,8 @@ export function Chat({
   });
 
 
+  console.log(messages)
+
   const hasMessages = messages.length > 0 || initialMessages.length > 0;
 
   const handleSubmit = async (message: ChatInputMessage) => {
@@ -109,8 +111,6 @@ export function Chat({
       text={text}
       setText={setText}
       textareaRef={textareaRef}
-      useWebSearch={useWebSearch}
-      setUseWebSearch={setUseWebSearch}
       onSubmit={handleSubmit}
       status={status}
       hasMessages={hasMessages}
