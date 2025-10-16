@@ -1,0 +1,5 @@
+# Ignore the auto-generated vector store
+.vector-store.json
+
+# The vector store will be rebuilt automatically on first query
+# or manually with: npm run build-vectors
