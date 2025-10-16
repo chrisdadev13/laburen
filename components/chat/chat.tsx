@@ -33,7 +33,6 @@ export function Chat({
   onNewChat,
 }: ChatProps) {
   const [text, setText] = useState<string>("");
-  const [useWebSearch, setUseWebSearch] = useState<boolean>(false);
   const [chatListOpen, setChatListOpen] = useState<boolean>(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 

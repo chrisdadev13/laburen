@@ -41,9 +41,6 @@ export default async function Page(props: { params: Promise<{ id: string }> }) {
     createdAt: msg.createdAt,
   }));
 
-  console.dir(messagesFromDb, {depth: null})
-  console.dir(uiMessages, {depth: null})
-
   return (
     <Chat
       initialMessages={uiMessages}
