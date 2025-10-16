@@ -9,7 +9,7 @@ async function main() {
   console.log('🚀 Building vector store...\n');
 
   try {
-    const documents = await buildVectorStore(true); // force rebuild
+    const documents = await buildVectorStore(); // force rebuild
 
     console.log('\n✅ Vector store built successfully!');
     console.log(`📚 Indexed ${documents.length} documents:\n`);
