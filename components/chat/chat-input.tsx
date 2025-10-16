@@ -112,19 +112,9 @@ function ChatInputInner({
               <PromptInputActionAddAttachments />
             </PromptInputActionMenuContent>
           </PromptInputActionMenu>
-          <PromptInputSpeechButton
-            onTranscriptionChange={setText}
-            textareaRef={textareaRef}
-          />
-          <PromptInputButton
-            onClick={() => setUseWebSearch(!useWebSearch)}
-            variant={useWebSearch ? "default" : "ghost"}
-          >
-            <GlobeIcon size={16} />
-            <span>Search</span>
-          </PromptInputButton>
         </PromptInputTools>
         <PromptInputSubmit
+        variant="ghost"
           disabled={
             (!text.trim() && !status) ||
             status === "streaming" ||
