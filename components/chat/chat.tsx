@@ -20,17 +20,20 @@ import {
 } from "@/components/chat";
 import { authClient } from "@/lib/auth-client";
 import { DefaultChatTransport, type UIMessage } from "ai";
+import { toast } from "sonner";
 
 interface ChatProps {
   initialMessages?: UIMessage[];
   currentChatId?: string;
   onNewChat?: () => void;
+  isAuthed?: boolean;
 }
 
 export function Chat({
   initialMessages = [],
   currentChatId,
   onNewChat,
+  isAuthed,
 }: ChatProps) {
   const [text, setText] = useState<string>("");
   const [chatListOpen, setChatListOpen] = useState<boolean>(false);
@@ -41,6 +44,7 @@ export function Chat({
 
   // Use initial messages if provided, otherwise use chat state
   const dbMessages = initialMessages.length > 0 ? initialMessages : [];
+
   const { messages, sendMessage, status } = useChat({
     messages: dbMessages,
     transport: new DefaultChatTransport({
@@ -58,43 +62,128 @@ export function Chat({
     }),
   });
 
-
-  console.log(messages)
-
   const hasMessages = messages.length > 0 || initialMessages.length > 0;
 
   const handleSubmit = async (message: ChatInputMessage) => {
-    if (message.text?.trim()) {
-      // Only create anonymous session if user doesn't have one
-      if (!session) {
-        try {
-          await authClient.signIn.anonymous();
-        } catch (error) {
-          console.error("Failed to create anonymous session:", error);
-          return; // Don't send message if session creation failed
+    if (!message.text?.trim()) return;
+
+    // If user is not authenticated, check for auth commands
+    if (!isAuthed) {
+      const text = message.text.trim();
+
+      // Handle sign in command: /signin {username} {password}
+      if (text.startsWith('/signin ')) {
+        const parts = text.split(' ');
+        if (parts.length >= 3) {
+          const username = parts[1];
+          const password = parts.slice(2).join(' '); // Allow spaces in password
+
+          toast.loading("Signing in...", { id: 'signin' });
+
+          try {
+            const result = await authClient.signIn.username({
+              username,
+              password,
+            });
+
+            if (result.error) {
+              toast.error(`Sign in failed: ${result.error.message || 'Invalid credentials'}`, { id: 'signin' });
+              // Send auth error to AI for user-friendly message
+              sendMessage({
+                text: `Authentication failed: ${result.error.message || 'Invalid credentials'}`,
+                metadata: { authError: 'signin', originalCommand: text }
+              });
+              setText("");
+              return;
+            }
+
+            toast.success("Sign in successful! Welcome back!", { id: 'signin' });
+            // If successful, send success message to AI for user feedback
+            sendMessage({
+              text: "Authentication successful! Welcome to the employee portal.",
+              metadata: { authSuccess: 'signin' }
+            });
+            setText("");
+          } catch (error) {
+            toast.error(`Sign in failed: ${error instanceof Error ? error.message : 'Unknown error'}`, { id: 'signin' });
+            // Send auth error to AI for user-friendly message
+            sendMessage({
+              text: `Authentication failed: ${error instanceof Error ? error.message : 'Invalid credentials'}`,
+              metadata: { authError: 'signin', originalCommand: text }
+            });
+            setText("");
+          }
         }
       }
 
-      sendMessage({ text: message.text });
-      window.history.replaceState({}, "", `/${currentChatId}`);
-      setText("");
+      // Handle sign up command: /signup {email} {username} {password}
+      if (text.startsWith('/signup ')) {
+        const parts = text.split(' ');
+        if (parts.length >= 4) {
+          const email = parts[1];
+          const username = parts[2];
+          const password = parts.slice(3).join(' '); // Allow spaces in password
+
+          toast.loading("Creating account...", { id: 'signup' });
+
+          try {
+            const result = await authClient.signUp.email({
+              email,
+              username,
+              password,
+              name: username,
+            });
+
+            if (result.error) {
+              toast.error(`Account creation failed: ${result.error.message || 'Unable to create account'}`, { id: 'signup' });
+              // Send auth error to AI for user-friendly message
+              sendMessage({
+                text: `Account creation failed: ${result.error.message || 'Unable to create account'}`,
+                metadata: { authError: 'signup', originalCommand: text }
+              });
+              setText("");
+              return;
+            }
+
+            toast.success("Account created successfully! Welcome!", { id: 'signup' });
+            // If successful, send success message to AI for user feedback
+            sendMessage({
+              text: "Account created successfully! Welcome to the employee portal.",
+              metadata: { authSuccess: 'signup' }
+            });
+            setText("");
+          } catch (error) {
+            toast.error(`Account creation failed: ${error instanceof Error ? error.message : 'Unknown error'}`, { id: 'signup' });
+            // Send auth error to AI for user-friendly message
+            sendMessage({
+              text: `Account creation failed: ${error instanceof Error ? error.message : 'Unable to create account'}`,
+              metadata: { authError: 'signup', originalCommand: text }
+            });
+            setText("");
+          }
+        }
+      }
+
+      // If not an auth command, don't send message
+      toast("Authentication required!")
+      return;
     }
+
+    // If user is authenticated, send message normally
+    sendMessage({ text: message.text });
+    window.history.replaceState({}, "", `/${currentChatId}`);
+    setText("");
   };
 
   const handleSuggestionClick = async (suggestion: string) => {
-    // Only create anonymous session if user doesn't have one
-    if (!session) {
-      try {
-        await authClient.signIn.anonymous();
-      } catch (error) {
-        console.error("Failed to create anonymous session:", error);
-        return; // Don't send message if session creation failed
-      }
+    // If not authenticated, don't allow suggestions
+    if (!session?.user?.id) {
+      return;
     }
 
     // Send the suggestion as a message
     sendMessage({ text: suggestion });
-      window.history.replaceState({}, "", `/${currentChatId}`);
+    window.history.replaceState({}, "", `/${currentChatId}`);
   };
 
   const handleNewChatClick = () => {
@@ -155,7 +244,10 @@ export function Chat({
             </Conversation>
           </div>
         ) : (
-          <EmptyState onSuggestionClick={handleSuggestionClick}>
+          <EmptyState
+            onSuggestionClick={handleSuggestionClick}
+            isAuthenticated={isAuthed}
+          >
             {chatInputBase}
           </EmptyState>
         )}

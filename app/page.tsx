@@ -1,7 +1,14 @@
 import { Chat } from "@/components/chat";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
 
-export default function Page() {
-  return <Chat currentChatId={generateUUID()} />;
+export default async function Page() {
+
+  const session = await auth.api.getSession({
+    headers: await headers() 
+  });
+
+  return <Chat currentChatId={generateUUID()} isAuthed={!!session?.user?.id} />;
 }
 
 function generateUUID(): string {

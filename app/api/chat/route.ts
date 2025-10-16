@@ -1,8 +1,7 @@
 // import { google } from '@ai-sdk/google';
 import { xai } from '@ai-sdk/xai';
-import { convertToModelMessages, streamText, tool, stepCountIs, type UIMessage } from 'ai';
+import { streamText, tool, stepCountIs, type UIMessage } from 'ai';
 import { auth } from '@/lib/auth';
-import { redis } from '@/lib/redis';
 import { z } from 'zod';
 import { db } from '@/db/drizzle';
 import { salesOrders } from '@/db/schema';
@@ -12,8 +11,6 @@ import { searchDocsTool, getDocContentTool, listDocsTool } from '@/lib/rag-tools
 import { getChatById, getMessagesByChatId, saveChat, saveMessages } from '@/lib/db/queries';
 
 export const maxDuration = 30;
-
-const REDIS_AUTH_PREFIX = 'user:authenticated:';
 
 // Helper function to extract text content from UIMessage parts
 function getMessageContent(message: UIMessage): string {
@@ -71,111 +68,6 @@ function convertToDBMessage(uiMessage: UIMessage, chatId: string) {
         attachments: [], // TODO: Handle attachments if needed
     };
 }
-
-const createSignUpTool = (userId: string) => tool({
-    description: "Sign up a new user with username and password. Use this when the user wants to create a new account.",
-    inputSchema: z.object({
-        username: z.string().describe("The username for the new account"),
-        password: z.string().min(8).describe("The password (minimum 8 characters)"),
-        email: z.email().describe("The user's email address"),
-        name: z.string().optional().describe("The user's display name (optional, defaults to username)"),
-    }),
-    execute: async ({ username, password, email, name }) => {
-        try {
-            const result = await auth.api.signUpEmail({
-                body: {
-                    email,
-                    password,
-                    name: name || username,
-                    username,
-                },
-            });
-
-            // Mark user as authenticated in Redis (expires in 7 days)
-            await redis.setex(`${REDIS_AUTH_PREFIX}${userId}`, 60 * 60 * 24 * 7, 'true');
-
-            return {
-                success: true,
-                message: "Account created successfully! You are now signed in.",
-                user: {
-                    id: result.user.id,
-                    email: result.user.email,
-                    name: result.user.name,
-                }
-            };
-        } catch (error) {
-            return {
-                success: false,
-                error: error instanceof Error ? error.message : "An unexpected error occurred",
-            };
-        }
-    },
-});
-
-const createSignInTool = (userId: string) => tool({
-    description: "Sign in an existing user with their username and password. Use this when the user wants to log in.",
-    inputSchema: z.object({
-        username: z.string().describe("The user's username"),
-        password: z.string().describe("The user's password"),
-    }),
-    execute: async ({ username, password }) => {
-        try {
-            const result = await auth.api.signInUsername({
-                body: {
-                    username,
-                    password,
-                }
-            });
-
-            if (!result) {
-                return {
-                    success: false,
-                    error: "Sign in failed",
-                };
-            }
-
-            // Mark user as authenticated in Redis (expires in 7 days)
-            await redis.setex(`${REDIS_AUTH_PREFIX}${userId}`, 60 * 60 * 24 * 7, 'true');
-
-            return {
-                success: true,
-                message: "Successfully signed in!",
-                user: {
-                    id: result.user.id,
-                    username: result.user.username,
-                    email: result.user.email,
-                    name: result.user.name,
-                }
-            };
-        } catch (error) {
-            return {
-                success: false,
-                error: error instanceof Error ? error.message : "An unexpected error occurred",
-            };
-        }
-    },
-});
-
-const createSignOutTool = (userId: string) => tool({
-    description: "Sign out the current user. Use this when the user wants to log out.",
-    inputSchema: z.object({}),
-    execute: async () => {
-        try {
-            // Remove authentication flag from Redis
-            await redis.del(`${REDIS_AUTH_PREFIX}${userId}`);
-
-            return {
-                success: true,
-                message: "Successfully signed out. You'll need to sign in again to continue using the service.",
-            };
-        } catch (error) {
-            return {
-                success: false,
-                error: error instanceof Error ? error.message : "An unexpected error occurred",
-            };
-        }
-    },
-});
 
 const createSalesOrderTool = (userId: string) => tool({
     description: "Create a new sales order in the system. Use this when the user wants to place an order or record a sale.",
@@ -280,29 +172,160 @@ export async function POST(req: Request) {
         headers: req.headers,
     });
 
-    // If no session, return unauthorized
+    // If no session, return helpful auth instructions (no AI tokens used!)
     if (!session?.user?.id) {
-        return new Response('Unauthorized - No session found', { status: 401 });
+        return new Response(
+            JSON.stringify({
+                messages: [{
+                    id: nanoid(),
+                    role: 'assistant',
+                    content: `🔐 **Welcome to the Employee Portal**
+
+To access the system and its features, you need to authenticate first.
+
+**Sign In (Existing Account):**
+Use this command format:
+\`/signin {username} {password}\`
+
+**Sign Up (New Account):**
+Use this command format:
+\`/signup {email} {username} {password}\`
+
+Once you authenticate successfully, you'll have access to:
+- 📚 Knowledge base search and documentation
+- 📝 Sales order creation and management
+- 🔍 Order history and status tracking
+- And much more!
+
+Please use one of the authentication commands above to get started.`,
+                    parts: [{
+                        type: 'text',
+                        text: `🔐 **Welcome to the Employee Portal**
+
+To access the system and its features, you need to authenticate first.
+
+**Sign In (Existing Account):**
+Use this command format:
+\`/signin {username} {password}\`
+
+**Sign Up (New Account):**
+Use this command format:
+\`/signup {email} {username} {password}\`
+
+Once you authenticate successfully, you'll have access to:
+- 📚 Knowledge base search and documentation
+- 📝 Sales order creation and management
+- 🔍 Order history and status tracking
+- And much more!
+
+Please use one of the authentication commands above to get started.`
+                    }],
+                    createdAt: new Date(),
+                }]
+            }),
+            {
+                headers: { 'Content-Type': 'application/json' }
+            }
+        );
     }
 
     const userId = session.user.id;
 
-    // Check if user is authenticated in Redis
-    const isAuthenticated = await redis.get(`${REDIS_AUTH_PREFIX}${userId}`);
-
-    const { message, id: chatId }: { message: UIMessage; id?: string } = await req.json();
+    const { message, id: chatId }: { message: UIMessage & { metadata?: { authError?: string; authSuccess?: string; originalCommand?: string } }; id?: string } = await req.json();
 
     // Generate or use provided chat ID
     const id = chatId || nanoid();
 
-    // Check if chat exists, if not create it
+    // Check if this is an auth success message
+    const isAuthSuccess = message?.metadata?.authSuccess;
+
+    if (isAuthSuccess && message.metadata) {
+        // Return hardcoded welcome message for successful authentication (no AI tokens used!)
+        const successMessages = {
+            signin: "🎉 Sign in successful! Welcome back to the employee portal. You now have access to all features including knowledge base search, sales order management, and more. How can I help you today?",
+            signup: "🎉 Account created successfully! Welcome to the employee portal. You now have access to all features including knowledge base search, sales order management, and more. How can I help you today?"
+        };
+
+        return new Response(
+            JSON.stringify({
+                messages: [{
+                    id: nanoid(),
+                    role: 'assistant',
+                    content: successMessages[message.metadata.authSuccess as keyof typeof successMessages] || "🎉 Authentication successful! Welcome to the employee portal.",
+                    parts: [{
+                        type: 'text',
+                        text: successMessages[message.metadata.authSuccess as keyof typeof successMessages] || "🎉 Authentication successful! Welcome to the employee portal."
+                    }],
+                    createdAt: new Date(),
+                }]
+            }),
+            {
+                headers: { 'Content-Type': 'application/json' }
+            }
+        );
+    }
+
+    // Check if this is an auth error message
+    const isAuthError = message?.metadata?.authError;
+
+    if (isAuthError && message.metadata) {
+        // Return hardcoded auth error message (no AI tokens used!)
+        const errorMessages = {
+            signin: "❌ Sign in failed! Please check your username and password and try again.",
+            signup: "❌ Account creation failed! Please check your information and try again."
+        };
+
+        return new Response(
+            JSON.stringify({
+                messages: [{
+                    id: nanoid(),
+                    role: 'assistant',
+                    content: errorMessages[message.metadata.authError as keyof typeof errorMessages] || "❌ Authentication failed. Please try again.",
+                    parts: [{
+                        type: 'text',
+                        text: errorMessages[message.metadata.authError as keyof typeof errorMessages] || "❌ Authentication failed. Please try again."
+                    }],
+                    createdAt: new Date(),
+                }]
+            }),
+            {
+                headers: { 'Content-Type': 'application/json' }
+            }
+        );
+    }
+
+    // Check if this is a new user session (just authenticated)
     const existingChat = await getChatById(id);
+    const isNewSession = !existingChat && !message; // No existing chat and no message means welcome
+
+    if (isNewSession) {
+        // Return hardcoded welcome message for new authentication
+        return new Response(
+            JSON.stringify({
+                messages: [{
+                    id: nanoid(),
+                    role: 'assistant',
+                    content: "Yay, you're in! 🎉 Welcome to the employee portal. You now have access to all features including knowledge base search, sales order management, and more. How can I help you today?",
+                    parts: [{
+                        type: 'text',
+                        text: "Yay, you're in! 🎉 Welcome to the employee portal. You now have access to all features including knowledge base search, sales order management, and more. How can I help you today?"
+                    }],
+                    createdAt: new Date(),
+                }]
+            }),
+            {
+                headers: { 'Content-Type': 'application/json' }
+            }
+        );
+    }
+
+    // Check if chat exists, if not create it
     if (!existingChat) {
         // Generate title from first user message
         const firstUserMessage = message;
         const messageContent = firstUserMessage ? getMessageContent(firstUserMessage) : '';
         const title = messageContent.substring(0, 100) || 'New Chat';
-        
+
         await saveChat({
             id,
             userId,
@@ -311,14 +334,12 @@ export async function POST(req: Request) {
         });
     }
 
-    // Save user message to database
-    const lastMessage = message;
-    if (lastMessage?.role === 'user') {
-        await saveMessages([convertToDBMessage(lastMessage, id)]);
+    // Save user message to database (if this isn't a new session)
+    if (message && message.role === 'user') {
+        await saveMessages([convertToDBMessage(message, id)]);
     }
 
-    const systemPrompt = isAuthenticated
-        ? `You are an intelligent employee assistant designed to help staff members with their daily work needs. You have access to a comprehensive company knowledge base and can assist with various tasks.
+    const systemPrompt = `You are an intelligent employee assistant designed to help staff members with their daily work needs. You have access to a comprehensive company knowledge base and can assist with various tasks.
 
 **Your Capabilities:**
 
@@ -345,36 +366,8 @@ export async function POST(req: Request) {
 - listDocs: Show all available documentation
 - createSalesOrder: Create new sales orders
 - getRecentOrders: View order history
-- signOut: Sign out when done
 
-Be professional, helpful, and efficient. You're here to make employees' work easier and help them find the information they need quickly.`
-        : `You are an employee authentication assistant. Access to the employee portal requires authentication.
-
-**Welcome to the Employee Portal**
-
-You help users with authentication only. For any other questions or requests, politely explain that they need to sign in first to access those features.
-
-**When to use authentication tools:**
-- ONLY when users explicitly say they want to "sign in", "log in", "sign up", or "create an account"
-- ONLY when users provide both username/email AND password for sign in
-- ONLY when users provide username, email, and password for sign up
-
-**When NOT to use authentication tools:**
-- When users ask about products, policies, or company information
-- When users want to create orders or view order history
-- When users ask general questions about the company
-
-**Response guidelines:**
-- Be helpful and friendly
-- Clearly explain that authentication is required for advanced features
-- Only offer to help with sign in/up when they explicitly request it
-- Do not proactively suggest using authentication tools
-
-**Available authentication tools:**
-- signIn: Use ONLY when user provides username/email AND password
-- signUp: Use ONLY when user provides username, email, AND password
-
-Remember: Authentication tools should only be used when users explicitly want to authenticate with proper credentials.`;
+Be professional, helpful, and efficient. You're here to make employees' work easier and help them find the information they need quickly.`;
 
     const messages = await getMessagesByChatId(id);
 
@@ -385,9 +378,6 @@ Remember: Authentication tools should only be used when users explicitly want to
         maxRetries: 5,
         stopWhen: stepCountIs(5),
         tools: {
-            signUp: createSignUpTool(userId),
-            signIn: createSignInTool(userId),
-            signOut: createSignOutTool(userId),
             createSalesOrder: createSalesOrderTool(userId),
             getRecentOrders: getRecentOrdersTool(userId),
             searchDocs: searchDocsTool,
