@@ -1,7 +1,9 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport, type UIMessage } from "ai";
 import { useRef, useState } from "react";
+import { toast } from "sonner";
 import {
   Conversation,
   ConversationContent,
@@ -19,8 +21,6 @@ import {
   EmptyState,
 } from "@/components/chat";
 import { authClient } from "@/lib/auth-client";
-import { DefaultChatTransport, type UIMessage } from "ai";
-import { toast } from "sonner";
 
 interface ChatProps {
   initialMessages?: UIMessage[];
@@ -68,17 +68,17 @@ export function Chat({
     if (!message.text?.trim()) return;
 
     // If user is not authenticated, check for auth commands
-    if (!isAuthed) {
+    if (!session) {
       const text = message.text.trim();
 
       // Handle sign in command: /signin {username} {password}
-      if (text.startsWith('/signin ')) {
-        const parts = text.split(' ');
+      if (text.startsWith("/signin ")) {
+        const parts = text.split(" ");
         if (parts.length >= 3) {
           const username = parts[1];
-          const password = parts.slice(2).join(' '); // Allow spaces in password
+          const password = parts.slice(2).join(" "); // Allow spaces in password
 
-          toast.loading("Signing in...", { id: 'signin' });
+          toast.loading("Signing in...", { id: "signin" });
 
           try {
             const result = await authClient.signIn.username({
@@ -87,29 +87,37 @@ export function Chat({
             });
 
             if (result.error) {
-              toast.error(`Sign in failed: ${result.error.message || 'Invalid credentials'}`, { id: 'signin' });
+              toast.error(
+                `Sign in failed: ${result.error.message || "Invalid credentials"}`,
+                { id: "signin" },
+              );
               // Send auth error to AI for user-friendly message
               sendMessage({
-                text: `Authentication failed: ${result.error.message || 'Invalid credentials'}`,
-                metadata: { authError: 'signin', originalCommand: text }
+                text: `Authentication failed: ${result.error.message || "Invalid credentials"}`,
+                metadata: { authError: "signin", originalCommand: text },
               });
               setText("");
               return;
             }
 
-            toast.success("Sign in successful! Welcome back!", { id: 'signin' });
+            toast.success("Sign in successful! Welcome back!", {
+              id: "signin",
+            });
             // If successful, send success message to AI for user feedback
             sendMessage({
               text: "Authentication successful! Welcome to the employee portal.",
-              metadata: { authSuccess: 'signin' }
+              metadata: { authSuccess: "signin" },
             });
             setText("");
           } catch (error) {
-            toast.error(`Sign in failed: ${error instanceof Error ? error.message : 'Unknown error'}`, { id: 'signin' });
+            toast.error(
+              `Sign in failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+              { id: "signin" },
+            );
             // Send auth error to AI for user-friendly message
             sendMessage({
-              text: `Authentication failed: ${error instanceof Error ? error.message : 'Invalid credentials'}`,
-              metadata: { authError: 'signin', originalCommand: text }
+              text: `Authentication failed: ${error instanceof Error ? error.message : "Invalid credentials"}`,
+              metadata: { authError: "signin", originalCommand: text },
             });
             setText("");
           }
@@ -117,14 +125,14 @@ export function Chat({
       }
 
       // Handle sign up command: /signup {email} {username} {password}
-      if (text.startsWith('/signup ')) {
-        const parts = text.split(' ');
+      if (text.startsWith("/signup ")) {
+        const parts = text.split(" ");
         if (parts.length >= 4) {
           const email = parts[1];
           const username = parts[2];
-          const password = parts.slice(3).join(' '); // Allow spaces in password
+          const password = parts.slice(3).join(" "); // Allow spaces in password
 
-          toast.loading("Creating account...", { id: 'signup' });
+          toast.loading("Creating account...", { id: "signup" });
 
           try {
             const result = await authClient.signUp.email({
@@ -135,29 +143,37 @@ export function Chat({
             });
 
             if (result.error) {
-              toast.error(`Account creation failed: ${result.error.message || 'Unable to create account'}`, { id: 'signup' });
+              toast.error(
+                `Account creation failed: ${result.error.message || "Unable to create account"}`,
+                { id: "signup" },
+              );
               // Send auth error to AI for user-friendly message
               sendMessage({
-                text: `Account creation failed: ${result.error.message || 'Unable to create account'}`,
-                metadata: { authError: 'signup', originalCommand: text }
+                text: `Account creation failed: ${result.error.message || "Unable to create account"}`,
+                metadata: { authError: "signup", originalCommand: text },
               });
               setText("");
               return;
             }
 
-            toast.success("Account created successfully! Welcome!", { id: 'signup' });
+            toast.success("Account created successfully! Welcome!", {
+              id: "signup",
+            });
             // If successful, send success message to AI for user feedback
             sendMessage({
               text: "Account created successfully! Welcome to the employee portal.",
-              metadata: { authSuccess: 'signup' }
+              metadata: { authSuccess: "signup" },
             });
             setText("");
           } catch (error) {
-            toast.error(`Account creation failed: ${error instanceof Error ? error.message : 'Unknown error'}`, { id: 'signup' });
+            toast.error(
+              `Account creation failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+              { id: "signup" },
+            );
             // Send auth error to AI for user-friendly message
             sendMessage({
-              text: `Account creation failed: ${error instanceof Error ? error.message : 'Unable to create account'}`,
-              metadata: { authError: 'signup', originalCommand: text }
+              text: `Account creation failed: ${error instanceof Error ? error.message : "Unable to create account"}`,
+              metadata: { authError: "signup", originalCommand: text },
             });
             setText("");
           }
@@ -165,7 +181,7 @@ export function Chat({
       }
 
       // If not an auth command, don't send message
-      toast("Authentication required!")
+      toast("Authentication required!");
       return;
     }
 
